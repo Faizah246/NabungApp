@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Daily Savings Tracker Android PWA</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+  /* Reset & base */
+  *, *::before, *::after { box-sizing: border-box; }
+  body {
+    margin: 0; background: #121212; color: #e0e0e0; font-family: 'Inter', sans-serif;
+    line-height: 1.5; min-height: 100vh; display: flex; flex-direction: column;
+  }
+  h1,h2,h3 { margin: 0; font-weight: 700; }
+  main {
+    flex: 1 0 auto;
+    max-width: 900px;
+    margin: 32px auto;
+    padding: 0 24px;
+  }
+  header {
+    background: linear-gradient(135deg, #6C63FF, #00B4D8);
+    padding: 24px 0;
+    box-shadow: 0 8px 24px rgba(108, 99, 255, 0.4);
+    text-align: center;
+    color: white;
+    user-select:none;
+    position: sticky;
+    top: 0;
+    z-index: 99;
+  }
+  header h1 { font-size: 2rem; letter-spacing: 0.1em; }
+  .card {
+    background: rgba(255 255 255 / 0.05);
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 32px;
+    box-shadow: 0 4px 12px rgba(0 0 0 / 0.25);
+    backdrop-filter: blur(10px);
+  }
+  button {
+    background: linear-gradient(135deg, #6C63FF, #00B4D8);
+    border: none;
+    border-radius: 12px;
+    padding: 12px 28px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: white;
+    cursor: pointer;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  button:hover, button:focus {
+    outline: none;
+    transform: scale(1.05);
+    box-shadow: 0 8px 16px rgba(108, 99, 255, 0.5);
+  }
+  button:disabled {
+    background: #555;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+  }
+  input, select {
+    padding: 10px;
+    border-radius: 12px;
+    border: none;
+    font-size: 1rem;
+    background: #222;
+    color: #eee;
+    appearance: none;
+  }
+  label {
+    font-size: 1.125rem;
+    font-weight: 600;
+  }
+  .flex-row {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .flex-col {
+    display: flex;
+    flex-direction: column;
+  }
+  .input-group {
+    flex: 1 1 180px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    border-radius: 12px;
+    overflow: hidden;
+    background: rgba(255 255 255 / 0.05);
+    box-shadow: 0 0 8px rgba(0 0 0 / 0.2);
+  }
+  thead tr { background: linear-gradient(135deg, #6C63FF, #00B4D8); }
+  thead th {
+    padding: 12px 16px;
+    color: white;
+    font-weight: 600;
+    text-align: left;
+  }
+  tbody tr:nth-child(even) { background: rgba(255 255 255 / 0.03); }
+  tbody tr:hover { background: rgba(108, 99, 255, 0.2); }
+  tbody td {
+    padding: 12px 16px;
+    font-feature-settings: "tnum";
+    font-variant-numeric: tabular-nums;
+    vertical-align: middle;
+  }
+  .action-btn {
+    background: none;
+    border: none;
+    color: #00b4d8;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 6px 10px;
+    font-size: 0.9rem;
+    border-radius: 8px;
+    transition: background-color 0.3s ease;
+  }
+  .action-btn:hover {
+    background-color: rgba(0,180,216,0.15);
+  }
+  .progress-container {
+    background: #333;
+    border-radius: 12px;
+    height: 32px;
+    overflow: hidden;
+    margin-top: 16px;
+  }
+  .progress-bar {
+    background: linear-gradient(90deg, #6C63FF 0%, #00B4D8 100%);
+    height: 100%;
+    width: 0;
+    transition: width 0.4s ease;
+    border-radius: 12px 0 0 12px;
+  }
+  #notification-permission {
+    margin-top: 8px;
+    font-size: 0.9rem;
+  }
+  /* Responsive */
+  @media (max-width: 640px) {
+    .flex-row {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .input-group {
+      flex: 1 1 100%;
+    }
+    button {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+</style>
+<!-- PWA manifest dan service worker -->
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#4CAF50" />
+
+<script>
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker
+      .register("sw.js")
+      .then(() => console.log("✅ Service Worker registered!"))
+      .catch(err => console.error("❌ SW registration failed:", err));
+  }
+</script>
+<script>
+  // Save Entry
+  function saveEntry() {
+    const date = document.getElementById("dateInput").value;
+    const amount = 10000;
+
+    if (!date) return alert("Pilih tanggal dulu ya!");
+
+    const entries = JSON.parse(localStorage.getItem("tabungan")) || [];
+
+    // Cegah input ganda
+    const exists = entries.find(e => e.date === date);
+    if (exists) return alert("Lu udah nabung di tanggal ini!");
+
+    entries.push({ date, amount });
+    localStorage.setItem("tabungan", JSON.stringify(entries));
+    renderEntries();
+  }
+
+  // Render data ke tabel
+  function renderEntries() {
+    const entries = JSON.parse(localStorage.getItem("tabungan")) || [];
+    const tbody = document.getElementById("dataBody");
+    const totalDiv = document.getElementById("totalTabungan");
+    tbody.innerHTML = "";
+
+    entries.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    let total = 0;
+
+    entries.forEach(entry => {
+      total += entry.amount;
+
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${entry.date}</td>
+        <td>Rp${entry.amount.toLocaleString()}</td>
+        <td><button onclick="deleteEntry('${entry.date}')">🗑️ Hapus</button></td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    totalDiv.textContent = `💰 Total Tabungan: Rp${total.toLocaleString()}`;
+  }
+
+  // Hapus entry
+  function deleteEntry(date) {
+    const confirmed = confirm(`Hapus data nabung tanggal ${date}?`);
+    if (!confirmed) return;
+
+    let entries = JSON.parse(localStorage.getItem("tabungan")) || [];
+    entries = entries.filter(e => e.date !== date);
+    localStorage.setItem("tabungan", JSON.stringify(entries));
+    renderEntries();
+  }
+
+  // Export ke CSV
+  function exportCSV() {
+    const entries = JSON.parse(localStorage.getItem("tabungan")) || [];
+    if (entries.length === 0) return alert("Belum ada data buat diexport!");
+
+    let csv = "Tanggal,Jumlah\n";
+    entries.forEach(e => {
+      csv += `${e.date},${e.amount}\n`;
+    });
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "riwayat_nabung.csv";
+    a.click();
+  }
+
+  // Jalan pas halaman dibuka
+  document.addEventListener("DOMContentLoaded", () => {
+    renderEntries();
+
+    // Set default date to today
+    const todayStr = new Date().toISOString().split("T")[0];
+    document.getElementById("dateInput").value = todayStr;
+    document.getElementById("dateInput").max = todayStr;
+  });
+</script>
+
+</head>
+<body>
+<header>-
+  <h1>Daily Savings Tracker</h1>
+</header>
+<h2>📅 Nabung Harian 💐</h2>
+<input type="date" id="dateInput" />
+<button onclick="saveEntry()">✅ Simpan</button>
+<button onclick="exportCSV()">📤 Export CSV</button>
+
+<div id="totalTabungan" style="margin-top:10px; font-weight:bold;"></div>
+
+<table border="1" cellpadding="5" style="margin-top:10px;">
+  <thead>
+    <tr>
+      <th>Tanggal</th>
+      <th>Jumlah</th>
+      <th>Aksi</th>
+    </tr>
+  </thead>
+  <tbody id="dataBody"></tbody>
+</table>
+
+<main>
+  <section class="card" aria-label="Target and progress">
+    <h2>Set Savings Target</h2>
+    <div class="flex-row">
+      <label for="target-input" class="input-group">Target Amount IDR</label>
+      <input type="number" id="target-input" min="1000" step="1000" value="10000000" />
+    </div>
+    <p>Total Saved: <strong id="total-saved">0</strong></p>
+    <div class="progress-container" role="progressbar" aria-valuemin="0" aria-valuemax="10000000" aria-valuenow="0" aria-label="Savings progress bar">
+      <div class="progress-bar" id="progress-bar"></div>
+    </div>
+  </section>
+
+  <section class="card" aria-label="Add daily saving entry">
+    <h2>Add or Edit Daily Saving</h2>
+    <form id="entry-form" class="flex-row" novalidate>
+      <div class="input-group flex-col">
+        <label for="date-input">Date</label>
+        <input type="date" id="date-input" required />
+      </div>
+      <div class="input-group flex-col">
+        <label for="amount-input">Amount IDR</label>
+        <input type="number" id="amount-input" min="1000" step="1000" value="10000" required />
+      </div>
+      <button type="submit" id="save-entry-btn" aria-label="Save entry">Save Entry</button>
+      <button type="button" id="cancel-edit-btn" style="display:none; background:#999;" aria-label="Cancel editing">Cancel</button>
+    </form>
+  </section>
+
+  <section class="card" aria-label="Daily entries list">
+    <h2>Daily Savings Entries</h2>
+    <table aria-describedby="entries-desc" id="entries-table">
+      <thead>
+        <tr>
+          <th>Date</th><th>Amount</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Filled dynamically -->
+      </tbody>
+    </table>
+    <p id="entries-desc" class="sr-only">List of all daily savings entries. You can edit or delete each entry.</p>
+  </section>
+
+  <section class="card" aria-label="Export and import data">
+    <h2>Backup and Restore</h2>
+    <button id="export-json-btn" aria-label="Export data to JSON file">Export Data to JSON</button>
+    <input type="file" id="import-json-file" accept="application/json" style="margin-top:12px;"/>
+    <button id="import-json-btn" aria-label="Import data from JSON file">Import Data from JSON</button>
+  </section>
+
+  <section class="card" aria-label="Notifications permission">
+    <h2>Notifications</h2>
+    <button id="notify-permission-btn">Enable Daily Reminder Notifications</button>
+    <p id="notification-permission" aria-live="polite"></p>
+  </section>
+</main>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+<script>
+  'use strict';
+
+  // Firebase config - replace with your Firebase config
+  const firebaseConfig = {
+    apiKey: "AIzaSy...ReplaceWithYourAPIKey",
+    authDomain: "save-app.firebaseapp.com",
+    databaseURL: "https://console.firebase.google.com/u/0/project/nabungapp-d63ed/database/nabungapp-d63ed-default-rtdb/data/~2F",
+    projectId: "save-app",
+    storageBucket: "save-app.appspot.com",
+    messagingSenderId: "1234567890",
+    appId: "1:1234567890:web:abcdef123456"
+  };
+
+  // Initialize Firebase
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  // Elements
+  const targetInput = document.getElementById('target-input');
+  const totalSavedEl = document.getElementById('total-saved');
+  const progressBar = document.getElementById('progress-bar');
+  const entriesTableBody = document.querySelector('#entries-table tbody');
+  const entryForm = document.getElementById('entry-form');
+  const dateInput = document.getElementById('date-input');
+  const amountInput = document.getElementById('amount-input');
+  const saveEntryBtn = document.getElementById('save-entry-btn');
+  const cancelEditBtn = document.getElementById('cancel-edit-btn');
+  const exportJsonBtn = document.getElementById('export-json-btn');
+  const importJsonFile = document.getElementById('import-json-file');
+  const importJsonBtn = document.getElementById('import-json-btn');
+  const notifyPermissionBtn = document.getElementById('notify-permission-btn');
+  const notificationPermissionStatus = document.getElementById('notification-permission');
+
+  // State
+  let editingId = null;
+  let entries = {}; // { date: { amount, timestamp } }
+  let targetAmount = 10000000;
+
+  // Utils
+  function formatCurrency(num) {
+    return num.toLocaleString('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
+  }
+  function pad(num) { return num.toString().padStart(2, '0'); }
+  function formatDate(date) {
+    if (typeof date === 'string') return date;
+    return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}`;
+
+  }
+  function isValidDate(d) { return d instanceof Date && !isNaN(d); }
+  function showAlert(msg) { alert(msg); }
+
+  // LocalStorage key fallback
+  const LS_KEY = 'daily-savings-entries';
+  const LS_TARGET_KEY = 'daily-savings-target';
+
+  // Save target to localStorage and update Firebase
+  function saveTarget(amount) {
+    targetAmount = amount;
+    localStorage.setItem(LS_TARGET_KEY, String(amount));
+    updateProgress();
+    // Save to Firebase db root /target
+    if (db) {
+      db.ref('target').set(amount).catch(console.error);
+    }
+  }
+
+  // Load target from localStorage or Firebase
+  async function loadTarget() {
+    let target = parseInt(localStorage.getItem(LS_TARGET_KEY),10);
+    if (!target || isNaN(target)) target = 10000000;
+    if (db) {
+      try {
+        const snap = await db.ref('target').get();
+        if (snap.exists()) {
+          target = Number(snap.val());
+        }
+      } catch(e) {
+        console.error('Firebase target load error:', e);
+      }
+    }
+    targetAmount = target;
+    targetInput.value = targetAmount;
+    updateProgress();
+  }
+
+  // Save entries to localStorage and Firebase
+  function saveEntries() {
+    localStorage.setItem(LS_KEY, JSON.stringify(entries));
+    try {
+      if (db) {
+        db.ref('entries').set(entries).catch(console.error);
+      }
+    } catch(e) {
+      console.error('Firebase save entries error:', e);
+    }
+  }
+
+  // Load entries from localStorage and Firebase
+  async function loadEntries() {
+    try {
+      const lsData = localStorage.getItem(LS_KEY);
+      if (lsData) {
+        entries = JSON.parse(lsData);
+      }
+    } catch(e) {
+      console.error('LocalStorage load error:', e);
+    }
+
+    // Try to fetch from Firebase and merge if exists
+    if (db) {
+      try {
+        const snap = await db.ref('entries').get();
+        if (snap.exists()) {
+          const fbEntries = snap.val();
+          // Merge Firebase entries with local entries (Firebase prevails)
+          entries = { ...entries, ...fbEntries };
+          saveEntries();
+        }
+      } catch(e) {
+        console.error('Firebase load entries error:', e);
+      }
+    }
+  }
+
+  // Update progress bar and total saved
+  function updateProgress() {
+    let total = 0;
+    Object.values(entries).forEach(e => {
+      total += Number(e.amount) || 0;
+    });
+    totalSavedEl.textContent = formatCurrency(total);
+    const percent = Math.min((total / targetAmount) * 100, 100);
+    progressBar.style.width = percent + '%';
+    progressBar.parentElement.setAttribute('aria-valuemax', targetAmount);
+    progressBar.parentElement.setAttribute('aria-valuenow', total);
+  }
+
+  // Render entries table
+  function renderEntries() {
+    entriesTableBody.innerHTML = '';
+    const sortedDates = Object.keys(entries).sort((a,b) => b.localeCompare(a)); // descending
+    if (sortedDates.length === 0) {
+      entriesTableBody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:#bbb;">No entries yet</td></tr>';
+      return;
+    }
+    for (const date of sortedDates) {
+      const { amount } = entries[date];
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>\${date}</td>
+        <td>\${formatCurrency(Number(amount))}</td>
+        <td>
+          <button class="action-btn" data-action="edit" data-date="\${date}" aria-label="Edit entry for \${date}">Edit</button>
+          <button class="action-btn" data-action="delete" data-date="\${date}" aria-label="Delete entry for \${date}">Delete</button>
+        </td>
+      `;
+      entriesTableBody.appendChild(tr);
+      }
+  }
+
+  // Populate edit form with entry data
+  function startEditing(date) {
+    if (!entries[date]) return;
+    editingId = date;
+    dateInput.value = date;
+    amountInput.value = entries[date].amount;
+    dateInput.disabled = true;
+    saveEntryBtn.textContent = 'Update Entry';
+    cancelEditBtn.style.display = 'inline-flex';
+    saveEntryBtn.setAttribute('aria-label', 'Update entry');
+    cancelEditBtn.focus();
+  }
+
+  // Cancel editing mode
+  function cancelEdit() {
+    editingId = null;
+    entryForm.reset();
+    dateInput.disabled = false;
+    saveEntryBtn.textContent = 'Save Entry';
+    cancelEditBtn.style.display = 'none';
+    saveEntryBtn.setAttribute('aria-label', 'Save entry');
+  }
+
+  // Delete an entry
+  function deleteEntry(date) {
+    if (!entries[date]) return;
+    const confirmed = confirm(`Delete entry for ${date}?`);
+    if (!confirmed) return;
+    delete entries[date];
+    saveEntries();
+    updateProgress();
+    renderEntries();
+    if (editingId === date) cancelEdit();
+  }
+
+  // Handle form submission: add or edit entry
+  function onEntryFormSubmit(ev) {
+    ev.preventDefault();
+    const date = dateInput.value;
+    const amount = Number(amountInput.value);
+    if (!date || !isValidDate(new Date(date))) {
+      showAlert('Please enter a valid date.');
+      return;
+    }
+    if (isNaN(amount) || amount < 1000) {
+      showAlert('Please enter an amount of at least 1,000 IDR.');
+      return;
+    }
+    // If editing and date changed (shouldn't happen), disallow
+    if (!editingId || editingId === date) {
+      entries[date] = { amount, timestamp: Date.now() };
+    } else {
+      if (entries[date]) {
+        showAlert('An entry for this date already exists.');
+        return;
+      }
+      delete entries[editingId];
+      entries[date] = { amount, timestamp: Date.now() };
+    }
+    saveEntries();
+    updateProgress();
+    renderEntries();
+    cancelEdit();
+  }
+
+  // Export entries and target as JSON file
+  function exportToJson() {
+    const exportData = {
+      targetAmount,
+      entries,
+      exportedAt: new Date().toISOString(),
+    };
+    const jsonStr = JSON.stringify(exportData, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'daily-savings-backup.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // Import entries and target from JSON file
+  function importFromJson(file) {
+    if (!file) {
+      showAlert('Please select a JSON file to import.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const importData = JSON.parse(e.target.result);
+        if (importData.targetAmount) {
+          saveTarget(Number(importData.targetAmount));
+        }
+        if (importData.entries && typeof importData.entries === 'object') {
+          entries = { ...entries, ...importData.entries };
+          saveEntries();
+          updateProgress();
+          renderEntries();
+          showAlert('Data imported successfully.');
+        } else {
+          showAlert('Invalid data format.');
+        }
+      } catch (err) {
+        showAlert('Failed to parse JSON file.');
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  // Event Listeners
+  entryForm.addEventListener('submit', onEntryFormSubmit);
+  cancelEditBtn.addEventListener('click', cancelEdit);
+  entriesTableBody.addEventListener('click', e => {
+    const target = e.target;
+    if (target.tagName === 'BUTTON') {
+      const action = target.getAttribute('data-action');
+      const date = target.getAttribute('data-date');
+      if (action === 'edit') startEditing(date);
+      if (action === 'delete') deleteEntry(date);
+    }
+  });
+
+  targetInput.addEventListener('change', () => {
+    const val = Number(targetInput.value);
+    if (!isNaN(val) && val >= 1000) {
+      saveTarget(val);
+    }
+  });
+
+  exportJsonBtn.addEventListener('click', exportToJson);
+
+  importJsonBtn.addEventListener('click', () => {
+    const file = importJsonFile.files[0];
+    importFromJson(file);
+  });
+
+  // Notifications permission and registration
+  notifyPermissionBtn.addEventListener('click', async () => {
+    if (!('Notification' in window)) {
+      notificationPermissionStatus.textContent = 'This browser does not support notifications.';
+      return;
+    }
+    const perm = await Notification.requestPermission();
+    if (perm === 'granted') {
+      notificationPermissionStatus.textContent = 'Notification permission granted. You will receive daily reminders.';
+      registerServiceWorker();
+    } else {
+      notificationPermissionStatus.textContent = 'Notification permission denied or dismissed.';
+    }
+  });
+
+  // Register service worker for notifications
+  async function registerServiceWorker() {
+    if ('serviceWorker' in navigator) {
+      try {
+        const reg = await navigator.serviceWorker.register('sw.js');
+        console.log('Service worker registered.', reg);
+      } catch (e) {
+        console.error('Service worker registration failed:', e);
+      }
+    } else {
+      console.warn('Service worker not supported');
+    }
+  }
+
+  // Initialization: load data and render UI
+  async function init() {
+    await loadTarget();
+    await loadEntries();
+
+    updateProgress();
+    renderEntries();
+
+    // Set date input max to today
+    const todayStr = formatDate(new Date());
+    dateInput.max = todayStr;
+    dateInput.value = todayStr;
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+</script>
+
+</body>
+</html>
